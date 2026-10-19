@@ -467,9 +467,9 @@ function App() {
             <div className="hill hill-back" /><div className="hill hill-mid" /><div className="hill hill-front" />
             <div className="green" /><div className="green-shadow" />
             <div className="flagpole"><div className="flag" /></div>
-            <span className="art-grass grass-a">✳</span><span className="art-grass grass-b">✳</span>
+            <span className="art-grass grass-a"><Icon name="sparkle" /></span><span className="art-grass grass-b"><Icon name="sparkle" /></span>
           </div>
-          <div className="art-caption">THE ONLY FORECAST THAT MATTERS <span>↗</span></div>
+          <div className="art-caption">THE ONLY FORECAST THAT MATTERS <span className="caption-arrow"><Icon name="arrow-up-right" /></span></div>
           <div className="hero-orbit orbit-one" /><div className="hero-orbit orbit-two" />
         </div>
       </section>
@@ -507,7 +507,7 @@ function App() {
           <div className="welcome-row">
             <div className="welcome-icon"><Icon name="sun" /></div>
             <div><strong>Your next round is out there.</strong><p>Search any town or course to compare nearby greens and their local forecast.</p></div>
-            <div className="welcome-sparkle">✳</div>
+            <div className="welcome-sparkle"><Icon name="sparkle" /></div>
           </div>
         )}
       </section>
@@ -621,6 +621,7 @@ function Icon({ name }: { name: string }) {
     search: <><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 4.5 4.5" /></>,
     "arrow-right": <><path d="M4 12h15" /><path d="m13 6 6 6-6 6" /></>,
     "arrow-up-right": <><path d="M7 17 17 7" /><path d="M8 7h9v9" /></>,
+    sparkle: <path d="M12 2.5 14 9.2 21 12l-7 2.8-2 6.7-2-6.7L3 12l7-2.8 2-6.7Z" />,
     pin: <><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z" /><circle cx="12" cy="10" r="2.4" /></>,
     clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
     alert: <><circle cx="12" cy="12" r="9" /><path d="M12 8v5" /><path d="M12 16.5h.01" /></>,

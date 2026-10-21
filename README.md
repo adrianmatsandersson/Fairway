@@ -43,20 +43,24 @@ The UI uses separate `SuggestionProvider`, `CourseDiscoveryProvider`, and
 - **Live suggestions:** `PhotonSuggestionProvider` calls the Photon geocoding
   API (`https://photon.komoot.io/api/`). Photon is a separate autocomplete
   source; it provides OSM-based place results, coordinates, and course/location
-  classification. Suggestions are debounced in the UI, cached in memory (up to
+  classification. Requests use Photon’s `default` language mode to retain local
+  place names and preserve selected suggestion coordinates, so choosing
+  between identically named places uses the chosen result as the nearby-course
+  search center. Suggestions are debounced in the UI, cached in memory (up to
   100 queries), and limited to at most one outbound request per second in this
   page session. If suggestions fail or have no results, the user can still
   submit the text.
 - **Submitted searches and courses:** `OpenStreetMapProvider` uses Nominatim
   only when the user explicitly submits text, then uses Overpass to find nearby
   golf courses. Selecting a suggestion fills the search input and closes the
-  list; it does not initiate a course or weather search. The selected name is
-  submitted as ordinary text when the user clicks **Find courses** or submits
-  the form, so the edited query is always geocoded by Nominatim. Searches
-  receive the selected radius through the shared
+  list; it does not initiate a course or weather search. The selected location
+  is used as the search center when the user clicks **Find courses**; manually
+  editing the text clears that selected location and geocodes the edited query
+  with Nominatim. Searches receive the selected radius through the shared
   `CourseSearchOptions.radiusKm` provider option, converted to meters for the
-  Overpass query. Course cards show each course's distance in meters or
-  kilometers, and search results indicate the radius used.
+  Overpass query. The list includes all courses returned within that search
+  radius; cards show each course's distance in meters or kilometers, and search
+  results indicate the radius used.
 - **Weather:** `OpenMeteoProvider` calls Open-Meteo. The optional date and time
   controls are alongside the initial town/course search. They represent one
   time in the user's device/browser local timezone (shown beside the controls),
@@ -66,9 +70,13 @@ The UI uses separate `SuggestionProvider`, `CourseDiscoveryProvider`, and
   validated at minute precision (the displayed current minute is accepted) and
   converted without parsing timezone-free text, then
   `ForecastQuery.dateTime` carries that ISO 8601 instant through course
-  discovery to every provider request. Each course provider translates the
-  same instant into that course's timezone, so a different course timezone
-  changes its displayed wall-clock time but not the intended moment.
+  discovery and each course forecast request. Forecasts load as cards approach
+  the viewport rather than all at once, with a per-course refresh control;
+  failed requests remain visible on that card and can be retried. Concurrent
+  visibility and refresh triggers share the same in-flight request. Each
+  course provider translates the same selected instant into that course's
+  timezone, so a different course timezone changes its displayed wall-clock
+  time but not the intended moment.
 
   Open-Meteo hourly data is local to each returned timezone. A requested
   instant is converted to the course-local date/time and matched to the nearest

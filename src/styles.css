@@ -139,6 +139,12 @@ h1 em { color: #a0b265; font-weight: 500; }
 .cover-badge svg { width: 11px; height: 11px; }
 .card-content { padding: 17px 17px 15px; }
 .course-title-row { display: flex; align-items: start; justify-content: space-between; gap: 6px; }
+.course-actions { display: flex; align-items: center; gap: 5px; flex: 0 0 auto; }
+.refresh-forecast { display: grid; place-items: center; width: 26px; height: 26px; padding: 0; border: 1px solid #e7ebe3; border-radius: 50%; background: #fff; color: #758578; cursor: pointer; }
+.refresh-forecast:hover:not(:disabled) { border-color: #bdcdb5; background: #f4f7f1; color: #315b3d; }
+.refresh-forecast:focus-visible { outline: 2px solid #afc39f; outline-offset: 2px; }
+.refresh-forecast:disabled { cursor: wait; color: #9aa397; }
+.refresh-forecast svg { width: 14px; height: 14px; }
 .course-kicker { color: #a0a99d; font-size: 7px; letter-spacing: 1.35px; font-weight: 700; }
 .course-title-row h3 { font-family: "Playfair Display", Georgia, serif; color: #294e38; font-size: 17px; line-height: 1.2; font-weight: 600; margin: 4px 0 0; }
 .map-link { display: grid; place-items: center; flex: 0 0 26px; width: 26px; height: 26px; border: 1px solid #e7ebe3; border-radius: 50%; color: #758578; }
@@ -172,6 +178,7 @@ h1 em { color: #a0b265; font-weight: 500; }
 .weather-error svg { width: 18px; flex: 0 0 auto; }
 .loader { width: 20px; height: 20px; border: 2px solid #dce4d7; border-top-color: #47734f; border-radius: 50%; animation: spin .8s linear infinite; }
 .loader.small { width: 16px; height: 16px; }
+.loader.tiny { width: 12px; height: 12px; border-width: 1.5px; }
 .empty-state { min-height: 160px; display: flex; align-items: center; justify-content: center; gap: 10px; color: #849084; font-size: 12px; }
 .empty-state > svg { color: #91a27b; }
 .welcome-row { position: relative; display: flex; align-items: center; gap: 15px; border: 1px solid #e9ede5; border-radius: 5px; background: #fff; padding: 20px 22px; overflow: hidden; }

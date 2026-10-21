@@ -45,6 +45,7 @@ describe("PhotonSuggestionProvider", () => {
     const requestUrl = new URL(String(fetchMock.mock.calls[0][0]));
     expect(requestUrl.hostname).toBe("photon.komoot.io");
     expect(requestUrl.searchParams.get("q")).toBe("Nässj");
+    expect(requestUrl.searchParams.get("lang")).toBe("default");
     expect(suggestions).toEqual([
       {
         placeId: 12345,

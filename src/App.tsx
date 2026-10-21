@@ -17,6 +17,7 @@ import {
   validateLocalDateTime,
   validateLocalDateTimeFormat,
 } from "./forecastTime";
+import { CourseForecastRequests } from "./courseForecastRequests";
 import {
   CLOCK_FORMAT_OPTIONS,
   COURSE_SEARCH_RADII_KM,
@@ -35,12 +36,15 @@ const weatherProvider = new OpenMeteoProvider();
 const SUGGESTION_DEBOUNCE_MS = 1_000;
 const MIN_SUGGESTION_LENGTH = 3;
 
-type WeatherState =
-  | { loading: true; data?: CourseForecast }
-  | { loading: false; data?: CourseForecast; error?: string };
+type WeatherState = {
+  loading: boolean;
+  data?: CourseForecast;
+  error?: string;
+};
 
 function App() {
   const [query, setQuery] = useState("");
+  const [selectedLocation, setSelectedLocation] = useState<LocationSuggestion | null>(null);
   const [searching, setSearching] = useState(false);
   const [suggestions, setSuggestions] = useState<LocationSuggestion[]>([]);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
@@ -51,12 +55,14 @@ function App() {
   const [resultRadiusKm, setResultRadiusKm] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [weather, setWeather] = useState<Record<string, WeatherState>>({});
+  const [forecastDateTime, setForecastDateTime] = useState<string | undefined>();
   const [targetDate, setTargetDate] = useState("");
   const [targetTime, setTargetTime] = useState("");
   const [forecastError, setForecastError] = useState("");
   const [preferences, setPreferences] = useState(loadPreferences);
   const searchSequence = useRef(0);
   const forecastSequence = useRef(0);
+  const forecastRequests = useRef(new CourseForecastRequests<void>());
   const searchInProgress = useRef(false);
 
   useEffect(() => {
@@ -98,12 +104,17 @@ function App() {
     };
   }, [query, suggestionsOpen]);
 
-  async function runSearch(value: string, targetInstant: string | undefined) {
+  async function runSearch(
+    value: string,
+    targetInstant: string | undefined,
+    location?: LocationSuggestion,
+  ) {
     if (!value || searchInProgress.current) return;
     const radiusKm = preferences.radiusKm;
     searchInProgress.current = true;
     const sequence = ++searchSequence.current;
     forecastSequence.current += 1;
+    forecastRequests.current.clear();
     setSuggestionsOpen(false);
     setSuggestions([]);
     setSearching(true);
@@ -111,55 +122,57 @@ function App() {
     setResult(null);
     setResultRadiusKm(null);
     setWeather({});
+    setForecastDateTime(targetInstant);
     setForecastError("");
     try {
-      const found = await courseProvider.search(value, { radiusKm });
+      const found = await courseProvider.search(value, {
+        radiusKm,
+        selectedLocation: location,
+      });
       if (sequence !== searchSequence.current) return;
       setResult(found);
       setResultRadiusKm(radiusKm);
-      if (!found.courses.length) return;
-      setWeather(Object.fromEntries(found.courses.map((course) => [course.id, { loading: true }] as const)));
-      const forecastSequenceAtSearch = ++forecastSequence.current;
-      void Promise.all(
-        found.courses.map(async (course) => {
-          try {
-            const data = await weatherProvider.forecast({
-              latitude: course.latitude,
-              longitude: course.longitude,
-              dateTime: targetInstant,
-            });
-            if (
-              sequence === searchSequence.current &&
-              forecastSequenceAtSearch === forecastSequence.current
-            ) {
-              setWeather((previous) => ({
-                ...previous,
-                [course.id]: { loading: false, data },
-              }));
-            }
-          } catch (cause) {
-            if (
-              sequence === searchSequence.current &&
-              forecastSequenceAtSearch === forecastSequence.current
-            ) {
-              setWeather((previous) => ({
-                ...previous,
-                [course.id]: {
-                  loading: false,
-                  data: previous[course.id]?.data,
-                  error: errorMessage(cause),
-                },
-              }));
-            }
-          }
-        }),
-      );
     } catch (cause) {
       setError(errorMessage(cause));
     } finally {
       searchInProgress.current = false;
       setSearching(false);
     }
+  }
+
+  function loadForecast(course: GolfCourse, forceRefresh = false) {
+    if (!forceRefresh && weather[course.id]) return;
+    const sequence = forecastSequence.current;
+    void forecastRequests.current.run(course.id, async () => {
+      setWeather((previous) => ({
+        ...previous,
+        [course.id]: { loading: true, data: previous[course.id]?.data },
+      }));
+      try {
+        const data = await weatherProvider.forecast({
+          latitude: course.latitude,
+          longitude: course.longitude,
+          dateTime: forecastDateTime,
+        });
+        if (sequence === forecastSequence.current) {
+          setWeather((previous) => ({
+            ...previous,
+            [course.id]: { loading: false, data },
+          }));
+        }
+      } catch (cause) {
+        if (sequence === forecastSequence.current) {
+          setWeather((previous) => ({
+            ...previous,
+            [course.id]: {
+              loading: false,
+              data: previous[course.id]?.data,
+              error: errorMessage(cause),
+            },
+          }));
+        }
+      }
+    });
   }
 
   function search(event: FormEvent<HTMLFormElement>) {
@@ -181,7 +194,7 @@ function App() {
       }
       targetInstant = validation.instant;
     }
-    void runSearch(query.trim(), targetInstant);
+    void runSearch(query.trim(), targetInstant, selectedLocation ?? undefined);
   }
 
   function validateSelectedTime(date: string, time: string) {
@@ -194,7 +207,8 @@ function App() {
   }
 
   function selectSuggestion(suggestion: LocationSuggestion) {
-    setQuery(suggestion.name);
+    setQuery(suggestion.displayName);
+    setSelectedLocation(suggestion);
     setSuggestionsOpen(false);
     setSuggestions([]);
     setActiveSuggestion(-1);
@@ -267,6 +281,7 @@ function App() {
                 onFocus={() => setSuggestionsOpen(true)}
                 onChange={(event) => {
                   setQuery(event.target.value);
+                  setSelectedLocation(null);
                   setSuggestionsOpen(true);
                   setSuggestions([]);
                   setActiveSuggestion(-1);
@@ -498,6 +513,7 @@ function App() {
                 index={index}
                 state={weather[course.id]}
                 clockFormat={preferences.clockFormat}
+                onNeedForecast={loadForecast}
               />
             ))}
           </div>
@@ -525,17 +541,57 @@ function CourseCard({
   index,
   state,
   clockFormat,
+  onNeedForecast,
 }: {
   course: GolfCourse;
   index: number;
   state?: WeatherState;
   clockFormat: ClockFormat;
+  onNeedForecast: (course: GolfCourse, forceRefresh?: boolean) => void;
 }) {
+  const cardRef = useRef<HTMLElement>(null);
+  const onNeedForecastRef = useRef(onNeedForecast);
+  onNeedForecastRef.current = onNeedForecast;
+
+  useEffect(() => {
+    const card = cardRef.current;
+    if (!card) return;
+    if (typeof IntersectionObserver === "undefined") {
+      const checkVisibility = () => {
+        const bounds = card.getBoundingClientRect();
+        if (bounds.bottom >= -200 && bounds.top <= window.innerHeight + 200) {
+          window.removeEventListener("scroll", checkVisibility);
+          window.removeEventListener("resize", checkVisibility);
+          onNeedForecastRef.current(course);
+        }
+      };
+      window.addEventListener("scroll", checkVisibility, { passive: true });
+      window.addEventListener("resize", checkVisibility);
+      checkVisibility();
+      return () => {
+        window.removeEventListener("scroll", checkVisibility);
+        window.removeEventListener("resize", checkVisibility);
+      };
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          observer.unobserve(card);
+          onNeedForecastRef.current(course);
+        }
+      },
+      { rootMargin: "200px 0px" },
+    );
+    observer.observe(card);
+    return () => observer.disconnect();
+  }, [course.id]);
+
   const forecast = state?.data;
   const current = forecast?.current;
   const details = current ? describeWeather(current.weatherCode) : null;
   return (
-    <article className="course-card">
+    <article className="course-card" ref={cardRef}>
       <div className={`card-cover cover-${index % 4}`}>
         <div className="cover-sun" />
         <div className="cover-course"><span /><span /><span /></div>
@@ -545,14 +601,28 @@ function CourseCard({
       <div className="card-content">
         <div className="course-title-row">
           <div><div className="course-kicker">GOLF COURSE</div><h3>{course.name}</h3></div>
-          <a className="map-link" href={`https://www.openstreetmap.org/?mlat=${course.latitude}&mlon=${course.longitude}#map=14/${course.latitude}/${course.longitude}`} target="_blank" rel="noreferrer" aria-label={`View ${course.name} on OpenStreetMap`}><Icon name="arrow-up-right" /></a>
+          <div className="course-actions">
+            <button
+              type="button"
+              className="refresh-forecast"
+              disabled={Boolean(state?.loading)}
+              aria-label={`${state?.loading ? "Refreshing" : "Refresh"} forecast for ${course.name}`}
+              title={`${state?.loading ? "Refreshing" : "Refresh"} forecast`}
+              onClick={() => onNeedForecastRef.current(course, true)}
+            >
+              {state?.loading ? <span className="loader tiny" aria-hidden="true" /> : <Icon name="refresh" />}
+            </button>
+            <a className="map-link" href={`https://www.openstreetmap.org/?mlat=${course.latitude}&mlon=${course.longitude}#map=14/${course.latitude}/${course.longitude}`} target="_blank" rel="noreferrer" aria-label={`View ${course.name} on OpenStreetMap`}><Icon name="arrow-up-right" /></a>
+          </div>
         </div>
         <div className="course-location"><Icon name="pin" /> {course.address || "Location details unavailable"}</div>
         <div className="course-timezone">
           <Icon name="clock" /> Course time: <strong>{forecast?.timezone || "Timezone unavailable"}</strong>
         </div>
-        <div className="weather-panel">
-          {state?.loading || !state ? <div className="weather-loading"><span className="loader small" /> Loading local forecast…</div> : state.error ? (
+        <div className="weather-panel" aria-busy={Boolean(state?.loading)}>
+          {state?.loading && !state.data ? <div className="weather-loading"><span className="loader small" /> Loading local forecast…</div> : !state ? (
+            <div className="weather-loading">Forecast loads as you browse…</div>
+          ) : state.error ? (
             <div className="weather-error" role="alert"><Icon name="cloud" /> {state.error}</div>
           ) : current && forecast ? (
             <>
@@ -619,6 +689,7 @@ function Icon({ name }: { name: string }) {
   const paths: Record<string, ReactNode> = {
     flag: <><path d="M4 21V5" /><path d="M4 5c6-4 10 4 16 0v11c-6 4-10-4-16 0" /></>,
     search: <><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 4.5 4.5" /></>,
+    refresh: <><path d="M20 7v5h-5" /><path d="M4.9 9A7.5 7.5 0 0 1 18 6.2L20 12" /><path d="M4 17v-5h5" /><path d="M19.1 15A7.5 7.5 0 0 1 6 17.8L4 12" /></>,
     "arrow-right": <><path d="M4 12h15" /><path d="m13 6 6 6-6 6" /></>,
     "arrow-up-right": <><path d="M7 17 17 7" /><path d="M8 7h9v9" /></>,
     sparkle: <path d="M12 2.5 14 9.2 21 12l-7 2.8-2 6.7-2-6.7L3 12l7-2.8 2-6.7Z" />,

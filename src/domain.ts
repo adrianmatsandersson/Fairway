@@ -21,6 +21,7 @@ export interface CourseSearchResult {
 
 export interface CourseSearchOptions {
   radiusKm: number;
+  selectedLocation?: SearchLocation;
 }
 
 export interface LocationSuggestion extends SearchLocation {

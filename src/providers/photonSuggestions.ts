@@ -39,12 +39,6 @@ function photonEndpoint(): string {
   return (configured || DEFAULT_PHOTON_URL).replace(/\/?$/, "/");
 }
 
-function preferredLanguage(): string {
-  const language =
-    typeof navigator !== "undefined" ? navigator.languages?.[0] : undefined;
-  return language?.split("-")[0] || "en";
-}
-
 function displayName(properties: NonNullable<PhotonFeature["properties"]>): string {
   const locality =
     properties.city ??
@@ -88,7 +82,7 @@ export class PhotonSuggestionProvider implements SuggestionProvider {
     const params = new URLSearchParams({
       q: value,
       limit: "5",
-      lang: preferredLanguage(),
+      lang: "default",
     });
     const response = await fetch(`${photonEndpoint()}?${params}`, { signal });
     if (!response.ok) {

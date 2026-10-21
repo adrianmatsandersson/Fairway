@@ -12,7 +12,6 @@ const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
 const DEFAULT_SEARCH_RADIUS_KM = 30;
 const MIN_SEARCH_RADIUS_KM = 5;
 const MAX_SEARCH_RADIUS_KM = 50;
-const COURSE_LIMIT = 8;
 const NOMINATIM_MIN_INTERVAL_MS = 1_000;
 let nextNominatimRequestAt = 0;
 
@@ -98,28 +97,33 @@ export class OpenStreetMapProvider implements CourseDiscoveryProvider {
     query: string,
     options?: CourseSearchOptions,
   ): Promise<CourseSearchResult> {
-    const params = searchParams(query.trim(), 8);
-    await waitForNominatimSlot();
-    const places = await fetchJson<NominatimPlace[]>(`${NOMINATIM_URL}?${params}`);
-    if (!places.length) {
-      throw new Error("We couldn't find that place. Try a nearby town or course name.");
-    }
+    let location = options?.selectedLocation;
+    let namedMatches: NominatimPlace[] = [];
+    if (!location) {
+      const params = searchParams(query.trim(), 8);
+      await waitForNominatimSlot();
+      const places = await fetchJson<NominatimPlace[]>(`${NOMINATIM_URL}?${params}`);
+      if (!places.length) {
+        throw new Error("We couldn't find that place. Try a nearby town or course name.");
+      }
 
-    // Prefer an exact course match when the search was a course name. Otherwise
-    // the first well-ranked town/place is the center of the nearby-course search.
-    const center = places.find(isGolfCourse) ?? places[0];
-    const location: SearchLocation = {
-      name: locationName(center),
-      latitude: Number(center.lat),
-      longitude: Number(center.lon),
-      displayName: center.display_name,
-    };
+      // Prefer an exact course match when the search was a course name. Otherwise
+      // the first well-ranked town/place is the center of the nearby-course search.
+      const center = places.find(isGolfCourse) ?? places[0];
+      location = {
+        name: locationName(center),
+        latitude: Number(center.lat),
+        longitude: Number(center.lon),
+        displayName: center.display_name,
+      };
+      namedMatches = places.filter(isGolfCourse);
+    }
 
     return {
       location,
       courses: await this.nearbyCourses(
         location,
-        places.filter(isGolfCourse),
+        namedMatches,
         searchRadiusMeters(options),
       ),
     };
@@ -187,8 +191,8 @@ out center tags;`;
     }
 
     return [...found.values()]
-      .sort((a, b) => a.distanceKm - b.distanceKm)
-      .slice(0, COURSE_LIMIT);
+      .filter((course) => course.distanceKm <= radiusMeters / 1_000)
+      .sort((a, b) => a.distanceKm - b.distanceKm);
   }
 }
 

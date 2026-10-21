@@ -94,4 +94,84 @@ describe("OpenStreetMapProvider course searches", () => {
       ]),
     );
   });
+
+  it("uses a selected suggestion's coordinates instead of re-geocoding its label", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        elements: [
+          {
+            type: "node",
+            id: 998,
+            lat: 57.78,
+            lon: 14.17,
+            tags: { name: "Jönköping Golfklubb" },
+          },
+        ],
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await new OpenStreetMapProvider().search(
+      "Skinnarebo, Jönköping County, Sweden",
+      {
+        radiusKm: 10,
+        selectedLocation: {
+          name: "Skinnarebo",
+          latitude: 57.75,
+          longitude: 14.1,
+          displayName: "Skinnarebo, Jönköping County, Sweden",
+        },
+      },
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(String(fetchMock.mock.calls[0][0])).toContain("overpass-api.de");
+    const overpassBody = fetchMock.mock.calls[0][1]?.body as URLSearchParams;
+    expect(overpassBody.get("data")).toContain("around:10000,57.75,14.1");
+    expect(result.location).toEqual({
+      name: "Skinnarebo",
+      latitude: 57.75,
+      longitude: 14.1,
+      displayName: "Skinnarebo, Jönköping County, Sweden",
+    });
+  });
+
+  it("returns every discovered course instead of truncating the nearby list", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        elements: [
+          ...Array.from({ length: 12 }, (_, index) => ({
+            type: "node",
+            id: index + 1,
+            lat: 57.65 + index * 0.001,
+            lon: 14.69,
+            tags: { name: `Course ${index + 1}` },
+          })),
+          {
+            type: "node",
+            id: 13,
+            lat: 58.2,
+            lon: 14.69,
+            tags: { name: "Outside the selected radius" },
+          },
+        ],
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await new OpenStreetMapProvider().search("Nässjö", {
+      radiusKm: 5,
+      selectedLocation: {
+        name: "Nässjö",
+        latitude: 57.65,
+        longitude: 14.69,
+        displayName: "Nässjö, Sweden",
+      },
+    });
+
+    expect(result.courses).toHaveLength(12);
+    expect(result.courses[0].name).toBe("Course 1");
+  });
 });

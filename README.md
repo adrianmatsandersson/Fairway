@@ -11,6 +11,18 @@ npm run dev
 
 Build with `npm run build`; run the provider-independent tests with `npm test`.
 
+## Install Fairway
+
+Fairway includes a web app manifest and install icons. When hosted over HTTPS,
+supported browsers can offer an option to install it (for example, **Install
+Fairway** in a browser menu or **Add to Home Screen** on mobile). GitHub Pages
+serves the app under `/Fairway/`; the manifest and icon URLs are relative to
+that deployment path.
+
+The installed app still requires an internet connection. Fairway does not use a
+service worker or cache provider responses, and course searches, suggestions,
+and forecasts continue to depend on their online services.
+
 ## Providers
 
 The UI uses separate `SuggestionProvider`, `CourseDiscoveryProvider`, and
